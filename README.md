@@ -141,34 +141,43 @@ existing ones.** If you've ever wondered *"why does my wrapper think it has
 - **Case-sensitive ID matching** - required on Turkish-locale systems; see [Troubleshooting](#troubleshooting).
 
 ---
-## Folder layout
+
 
 ## Folder layout
 
 The script expects (and works with) this layout:
 
 ```
+## Folder layout
+
+The script expects (and works with) this layout:
+
+```
 [somewhere]/
-├── yt-dlp.exe                    # shared, may live in a common tools dir
-├── ffmpeg.exe                    # optional, alongside yt-dlp.exe
-└── yt-downloader/                # everything else, app-specific
-    ├── yt-downloader.ps1
-    ├── run.bat
-    ├── setup.bat
-    ├── cookies.ps1
-    ├── README.md
-    ├── WHEN-BROKEN.txt
-    ├── REQUIREMENTS.txt
-    ├── deno.exe
-    ├── bgutil-pot.exe
-    ├── yt-dlp-plugins/
-    │   └── bgutil-ytdlp-pot-provider/
-    │       └── yt_dlp_plugins/
-    │           └── extractor/
-    │               ├── getpot_bgutil.py
-    │               ├── getpot_bgutil_cli.py
-    │               └── getpot_bgutil_http.py
-    └── cookie.txt                # created by setup.bat
+|-- yt-dlp.exe                    # shared, may live in a common tools dir
+|-- ffmpeg.exe                    # optional, alongside yt-dlp.exe
+`-- yt-downloader/                # everything else, app-specific
+    |-- yt-downloader.ps1
+    |-- run.bat
+    |-- setup.bat
+    |-- cookies.ps1
+    |-- README.md
+    |-- WHEN-BROKEN.txt
+    |-- REQUIREMENTS.txt
+    |-- deno.exe
+    |-- bgutil-pot.exe
+    |-- yt-dlp-plugins/
+    |   `-- bgutil-ytdlp-pot-provider/
+    |       `-- yt_dlp_plugins/
+    |           `-- extractor/
+    |               |-- getpot_bgutil.py
+    |               |-- getpot_bgutil_cli.py
+    |               `-- getpot_bgutil_http.py
+    `-- cookie.txt                # created by setup.bat
+```
+
+**The script searches for `yt-dlp.exe` in three places, in order:**
+[... rest of the prose unchanged ...]
 ```
 
 **The script searches for `yt-dlp.exe` in three places, in order:**
