@@ -153,7 +153,8 @@ The script expects (and works with) this layout:
 The script expects (and works with) this layout:
 
 ```
-<img width="537" height="470" alt="image" src="https://github.com/user-attachments/assets/e63abd6e-c07c-4bd5-9f02-2605390869b1" />
+<img width="604" height="421" alt="image" src="https://github.com/user-attachments/assets/5254a6ac-831d-4fa2-a7a8-b9d710fe4c30" />
+
 
 
 ```
