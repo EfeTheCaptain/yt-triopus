@@ -1,5 +1,5 @@
 ================================================================================
-WHEN-BROKEN.TXT - Triage card for yt-downloader
+WHEN-BROKEN.TXT - Triage card for yt-triopus
 ================================================================================
 
 NOTE: this file has been edited many times alongside the script. Most of
@@ -7,10 +7,6 @@ it matches the current version, but a few sections may describe behavior
 from older drafts. If a command here doesn't work as written, trust the
 script's own output over this file, and check README.md for the current
 behavior. The Quick Reference at the bottom is the most reliable section.
-
-================================================================================
-WHEN-BROKEN.TXT - Triage card for yt-downloader
-================================================================================
 
 WHAT THIS IS
 
@@ -41,23 +37,15 @@ STEP 0 - Read the startup checkup output
 
 Every launch prints a checkup before downloading:
 
-=== Checkup ===
-
-yt-dlp.exe
-
-deno.exe
-
-bgutil-pot.exe
-
-ffmpeg (PATH)
-
-plugin folder (3 .py files)
-
-cookie profile
-
-bgutil (PO token via HTTP)
-
-JS runtime (deno)
+    === Checkup ===
+      + yt-dlp.exe
+      + deno.exe
+      + bgutil-pot.exe
+      + ffmpeg (PATH)
+      + plugin folder (3 .py files)
+      + cookies (firefox)
+      + bgutil (PO token via HTTP)
+      + JS runtime (deno)
 
 Read the X and ! lines first.
 
@@ -187,11 +175,11 @@ Common causes, in order of likelihood:
      browsers, it auto-detects your profiles and lists them with
      cookies.sqlite sizes so you can pick the active one.
 
-You are not signed in to YouTube inside the browser whose profile
-you are reading cookies from.
+  2. You are not signed in to YouTube inside the browser whose profile
+     you are reading cookies from.
 
-Fix: open the browser, go to youtube.com, confirm your account
-avatar is in the top right. Sign in if needed, close fully, retry.
+     Fix: open the browser, go to youtube.com, confirm your account
+     avatar is in the top right. Sign in if needed, close fully, retry.
 
   3. The browser might be open while the script runs. Some browsers
      lock their cookie database, and yt-dlp may fail to read it. This
@@ -200,14 +188,14 @@ avatar is in the top right. Sign in if needed, close fully, retry.
 
      Fix: close the browser completely before running.
 
-The browser is a Chromium (Chrome, Edge, Brave, Chromium, Opera,
-Vivaldi). These cannot be read via browser extraction on modern
-Windows because of App-Bound Encryption.
+  4. The browser is a Chromium (Chrome, Edge, Brave, Chromium, Opera,
+     Vivaldi). These cannot be read via browser extraction on modern
+     Windows because of App-Bound Encryption.
 
-Symptom: "Could not copy Chrome cookie database" or
-"Failed to decrypt with DPAPI".
+     Symptom: "Could not copy Chrome cookie database" or
+              "Failed to decrypt with DPAPI".
 
-Fix: use a cookies.txt file instead. See SECTION I.4 below.
+     Fix: use a cookies.txt file instead. See SECTION I.4 below.
 
 After fixing any of the above, rerun step 2.
 
@@ -215,160 +203,83 @@ After fixing any of the above, rerun step 2.
 SECTION B - Turkish locale is eating video IDs
 ================================================================================
 
+
 How you got here: step 3 said tr-TR, OR step 4 showed rejected > 0 and
 every rejected ID contains a capital "I".
 
+
 What is happening:
 
-Windows in Turkish locale lowercases the capital letter "I" to "i"
-with a dot or to the dotless "i" (U+0131) depending on context.
-PowerShell's -match operator is case-insensitive by default, and
-under tr-TR its [A-Za-z] character class fails to match capital I.
-Any video ID containing capital I is silently dropped.
 
-How to confirm:
+  Windows in Turkish locale lowercases the capital letter "I" to "i"
+  with a dot or to the dotless "i" (U+0131) depending on context.
+  PowerShell's -match operator is case-insensitive by default, and
+  under tr-TR its [A-Za-z] character class fails to match capital I.
+  Any video ID containing capital I is silently dropped.
 
-Run step 4 above. If rejected > 0 and every rejected line contains
-a capital I, this is the cause.
+
+  Confirmed by test:
+
+
+    [Threading.Thread]::CurrentThread.CurrentCulture='tr-TR'
+    'I' -match  '^[A-Za-z]$'   # False  <- bug
+    'I' -cmatch '^[A-Za-z]$'   # True   <- fix
+
+
+How to confirm the bug on your system:
+
+
+  Run step 4 above. If rejected > 0 and every rejected line contains
+  a capital I, this is the cause. Or run the two-line test above:
+  if the first prints False and the second True, you are affected.
+
 
 Fix:
 
-Five lines in yt-downloader.ps1 need to use -cmatch and -cnotmatch
-(case-sensitive) instead of -match and -notmatch. The regex text is
-identical; only the operator changes.
 
-If you are running a current version of the script, this is already
-fixed. If you are on an older copy, or if someone introduced a plain
--match in a place that parses IDs, find and fix these five sites:
+  Five places in yt-downloader.ps1 parse YouTube video IDs. All five
+  must use -cmatch / -cnotmatch (case-sensitive) instead of -match /
+  -notmatch. The regex text is identical; only the operator changes.
 
-Inside Get-OnDiskIds:
-Find: if(')
-Replace: if(')
 
-Inside Invoke-Batch, .txt branch:
-Find: if(line-match'watch\?v=([A-Za-z0-9_-]{11})') Replace: if(line-cmatch'watch?v=([A-Za-z0-9_-]{11})')
+  If you are running a current version of the script, this is already
+  fixed. If you are on an older copy, or if someone introduced a plain
+  -match in a place that parses IDs, find and fix these five sites:
 
-Inside Invoke-Batch, enumeration foreach:
-Find: if(
-l
-−
-i
-s
-[
-s
-t
-r
-i
-n
-g
-]
-−
-a
-n
-d
-l−is[string]−andl-match'^([A-Za-z0-9_-]{11})
-′
-)
-R
-e
-p
-l
-a
-c
-e
-:
-i
-f
-(
-′
- )Replace:if(l-is[string]-and
-l
-−
-c
-m
-a
-t
-c
-h
-′
-(
-[
-A
-−
-Z
-a
-−
-z
-0
-−
-9
-−
-]
-11
-)
-l−cmatch 
-′(
- [A−Za−z0−9 
-−
-​
- ]11)')
 
-Inside Invoke-Batch, DEBUG block:
-Find: -notmatch'^([A-Za-z0-9_-]{11})
-′
-R
-e
-p
-l
-a
-c
-e
-:
-−
-c
-n
-o
-t
-m
-a
-t
-c
-h
-′
-(
-[
-A
-−
-Z
-a
-−
-z
-0
-−
-9
-−
-]
-11
-)
-′
- Replace:−cnotmatch 
-′(
- [A−Za−z0−9 
-−
-​
- ]11)'
+    Inside Get-OnDiskIds:
+      Find:     if($_.BaseName -match '\[([A-Za-z0-9_-]{11})\]$')
+      Replace:  if($_.BaseName -cmatch '\[([A-Za-z0-9_-]{11})\]$')
 
-Inside worker branch, error parser:
-Find: if(')
-Replace: if(')
 
-Save, rerun step 4. Expect rejected=0.
+    Inside Invoke-Batch, .txt branch:
+      Find:     if($line-match'watch\?v=([A-Za-z0-9_-]{11})')
+      Replace:  if($line-cmatch'watch\?v=([A-Za-z0-9_-]{11})')
+
+
+    Inside Invoke-Batch, enumeration foreach:
+      Find:     if($l-is[string]-and$l-match'^([A-Za-z0-9_-]{11})$')
+      Replace:  if($l-is[string]-and$l-cmatch'^([A-Za-z0-9_-]{11})$')
+
+
+    Inside Invoke-Batch, DEBUG block:
+      Find:     -notmatch'^([A-Za-z0-9_-]{11})$'
+      Replace:  -cnotmatch'^([A-Za-z0-9_-]{11})$'
+
+
+    Inside worker branch, error parser:
+      Find:     if($s -match '^ERROR: \[youtube\] ([A-Za-z0-9_-]{11}): (.*)$')
+      Replace:  if($s -cmatch '^ERROR: \[youtube\] ([A-Za-z0-9_-]{11}): (.*)$')
+
+
+  Save, rerun step 4. Expect rejected=0.
+
 
 Rule for future edits:
 
-Any regex that parses a YouTube video ID must use -cmatch / -cnotmatch.
-Safe everywhere - no downside in other locales. Make it a rule.
 
+  Any regex that parses a YouTube video ID must use -cmatch / -cnotmatch.
+  Safe everywhere - no downside in other locales. Make it a rule.
 ================================================================================
 SECTION C - Enumeration itself is short
 ================================================================================
@@ -427,25 +338,25 @@ advances.
 
 Try in order:
 
-Wait 60 seconds. yt-dlp spends the first minute negotiating
-formats, opening fragments, and handshaking. If the counter moves
-after a minute, it's working.
+  1. Wait 60 seconds. yt-dlp spends the first minute negotiating
+     formats, opening fragments, and handshaking. If the counter moves
+     after a minute, it's working.
 
-Refresh cookies (SECTION A), make sure bgutil-pot running (step 0).
+  2. Refresh cookies (SECTION A), make sure bgutil-pot running (step 0).
 
-Kill and restart. Ctrl+C, restart with the same command. The disk
-scan skips everything already finished, so nothing is lost.
-Sometimes the stall is a transient YouTube bot check.
+  3. Kill and restart. Ctrl+C, restart with the same command. The disk
+     scan skips everything already finished, so nothing is lost.
+     Sometimes the stall is a transient YouTube bot check.
 
-One worker stalled but others fine. Normal for many videos - one
-URL may be throttled. Kill and restart, or wait it out.
+  4. One worker stalled but others fine. Normal for many videos - one
+     URL may be throttled. Kill and restart, or wait it out.
 
-All workers stalled, every time, for every URL. bgutil-pot is
-probably not running or is broken. Check the log:
-Get-Content .\bgutil.log -EA SilentlyContinue
-Get-Content .\bgutil.log.err -EA SilentlyContinue
-If the log shows it started but never reached "listening on
-:4416", see SECTION L (hidden console issue).
+  5. All workers stalled, every time, for every URL. bgutil-pot is
+     probably not running or is broken. Check the log:
+       Get-Content .\bgutil.log -EA SilentlyContinue
+       Get-Content .\bgutil.log.err -EA SilentlyContinue
+     If the log shows it started but never reached "listening on
+     :4416", see SECTION L (hidden console issue).
 
 ================================================================================
 SECTION E - Script runs but FAILED.txt has entries
@@ -512,30 +423,12 @@ Fix: delete and re-download, OR rename to append the correct [id]
 
 If the file DOES end in [id] but the script won't recognize it:
 
-Get-ChildItem "env:USERPROFILE\Downloads\YouTube" -Recurse -File | Where-Object { _.BaseName -notmatch '
-(
-[
-A
-−
-Z
-a
-−
-z
-0
-−
-9
-−
-]
-11
-)
-([A−Za−z0−9 
-−
-​
- ]11)$' } |
-Select-Object FullName
+  Get-ChildItem (Join-Path (New-Object -ComObject Shell.Application).Namespace('shell:Downloads').Self.Path 'YouTube') -Recurse -File |
+    Where-Object { $_.BaseName -notmatch '\[([A-Za-z0-9_-]{11})\]$' } |
+    Select-Object FullName
 
-Anything this prints has a filename the script doesn't recognize.
-Either rename it or delete it.
+  Anything this prints has a filename the script doesn't recognize.
+  Either rename it or delete it.
 
 Note on non-.mp4 files:
 
@@ -545,143 +438,14 @@ separate video, or videos where mp4 merging fails). Those files are
 invisible and re-downloaded every run. To widen, find this line
 inside Get-OnDiskIds:
 
-Where-Object { 
-.
-E
-x
-t
-e
-n
-s
-i
-o
-n
-−
-i
-n
-′
-.
-m
-p
-4
-′
-,
-′
-.
-m
-p
-3
-′
-−
-a
-n
-d
-.
-​
- Extension−in 
-′
- .mp4 
-′
- , 
-′
- .mp3 
-′
- −and_.Length -gt 0 }
+  Where-Object { $_.Extension -in '.mp4','.mp3' -and $_.Length -gt 0 }
 
 Replace with:
 
-Where-Object { 
-.
-E
-x
-t
-e
-n
-s
-i
-o
-n
-−
-i
-n
-′
-.
-m
-p
-4
-′
-,
-′
-.
-m
-k
-v
-′
-,
-′
-.
-w
-e
-b
-m
-′
-,
-′
-.
-m
-p
-3
-′
-,
-′
-.
-m
-4
-a
-′
-,
-′
-.
-o
-p
-u
-s
-′
-−
-a
-n
-d
-.
-​
- Extension−in 
-′
- .mp4 
-′
- , 
-′
- .mkv 
-′
- , 
-′
- .webm 
-′
- , 
-′
- .mp3 
-′
- , 
-′
- .m4a 
-′
- , 
-′
- .opus 
-′
- −and_.Length -gt 0 }
+  Where-Object { $_.Extension -in '.mp4','.mkv','.webm','.mp3','.m4a','.opus' -and $_.Length -gt 0 }
 
 Safe - partial files like "Title [id].f137.mp4" are still excluded
 because [id] must be at the end of the basename.
-
 ================================================================================
 SECTION G - Video downloaded at low quality (360p) but channel has 4K
 ================================================================================
@@ -716,10 +480,13 @@ exist.
 
 Remove-Item (Join-Path (New-Object -ComObject Shell.Application).Namespace('shell:Downloads').Self.Path 'YouTube') -Recurse -Force -EA SilentlyContinue
 Remove-Item .\FAILED.txt -EA SilentlyContinue
-Remove-Item .\chunk_.txt -EA SilentlyContinue
-Remove-Item .\worker.log, .\worker*.err -EA SilentlyContinue
+Remove-Item .\chunk_*.txt -EA SilentlyContinue
+Remove-Item .\worker*.log, .\worker*.err -EA SilentlyContinue
 Remove-Item .\bgutil.log, .\bgutil.log.err -EA SilentlyContinue
 Remove-Item .\downloaded.txt -EA SilentlyContinue
+
+(chunk_*.txt and worker*.log -- the asterisks were stripped during the
+markdown round-trip.)
 
 Deletes: every downloaded video, failure log, temp chunk, worker log,
 bgutil log, legacy archive.
@@ -759,9 +526,8 @@ be reached.
 
 Fix: verify --js-runtimes deno:<path-to-deno.exe> in
 yt-downloader.ps1. If deno.exe is missing, put it next to the
-script. Alternative: pass --remote-components ejs:github instead
-(fetches a solver from GitHub, cached after first use, no local
-binary needed).
+script. Alternative: pass --remote-components ejs:github (fetches solver
+scripts from GitHub; still requires a JS runtime such as deno/node/bun).
 
 I.4 - Chromium-browser users - very common cause
 
@@ -774,65 +540,15 @@ Symptom: "Could not copy Chrome cookie database" or
 
 Fix: use cookies.txt instead of --cookies-from-browser. Steps:
 
-Install "Get cookies.txt LOCALLY" extension in the Chromium
-browser.
-
-Sign in to YouTube with the age-verified account.
-
-Export cookies as cookies.txt (Netscape format).
-
-Save the file next to yt-downloader.ps1.
-
-Edit yt-downloader.ps1, in 
-B
-a
-s
-e
-A
-r
-g
-s
-:
-C
-h
-a
-n
-g
-e
-:
-′
-−
-−
-c
-o
-o
-k
-i
-e
-s
-−
-f
-r
-o
-m
-−
-b
-r
-o
-w
-s
-e
-r
-′
-,
-BaseArgs:Change: 
-′
- −−cookies−from−browser 
-′
- ,CookiesProfile,
-To: '--cookies', (Join-Path $Dir 'cookies.txt'),
-
-Save, rerun.
+  1. Install "Get cookies.txt LOCALLY" extension in the Chromium
+     browser.
+  2. Sign in to YouTube with the age-verified account.
+  3. Export cookies as cookies.txt (Netscape format).
+  4. Save the file next to yt-downloader.ps1.
+  5. Edit yt-downloader.ps1, in $BaseArgs:
+       Change:  '--cookies-from-browser',$CookiesProfile,
+       To:      '--cookies', (Join-Path $Dir 'cookies.txt'),
+  6. Save, rerun.
 
 This is a hard wall, not a bug. Chromium on Windows cannot be
 read by external tools.
@@ -859,13 +575,13 @@ J.0 - Common folder structure mistakes
 
 yt-dlp requires this exact shape:
 
-yt-dlp-plugins
-+-- bgutil-ytdlp-pot-provider
-+-- yt_dlp_plugins
-+-- extractor
-+-- getpot_bgutil.py
-+-- getpot_bgutil_cli.py
-+-- getpot_bgutil_http.py
+  yt-dlp-plugins\
+  +-- bgutil-ytdlp-pot-provider\
+      +-- yt_dlp_plugins\
+          +-- extractor\
+              +-- getpot_bgutil.py
+              +-- getpot_bgutil_cli.py
+              +-- getpot_bgutil_http.py
 
 If your .py files are one level too high (yt-dlp-plugins\extractor),
 fix with:
@@ -891,56 +607,10 @@ bgutil-pot.exe.
 
 J.3 - JS challenge runtime
 
-Verify --js-runtimes deno:<path> in yt-downloader.ps1's 
-B
-a
-s
-e
-A
-r
-g
-s
-.
-T
-h
-e
-<
-p
-a
-t
-h
->
-m
-u
-s
-t
-b
-e
-a
-b
-s
-o
-l
-u
-t
-e
-(
-t
-h
-e
-s
-c
-r
-i
-p
-t
-u
-s
-e
-s
-BaseArgs.The<path>mustbeabsolute(thescriptusesDeno, which is
-"$Dir\deno.exe"). If deno.exe is not present, either add it or
-switch to --remote-components ejs:github.
+Verify --js-runtimes deno:<path> in yt-downloader.ps1's $BaseArgs.
+The <path> must be absolute (the script uses $Deno, which is
+"\deno.exe"). If deno.exe is not present, either add it or
+switch to --remote-components ejs:github (still needs a JS runtime).
 
 J.4 - Plugin still not loading after folder and name fix
 
