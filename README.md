@@ -153,27 +153,9 @@ The script expects (and works with) this layout:
 The script expects (and works with) this layout:
 
 ```
-[somewhere]/
-|-- yt-dlp.exe                    # shared, may live in a common tools dir
-|-- ffmpeg.exe                    # optional, alongside yt-dlp.exe
-`-- yt-downloader/                # everything else, app-specific
-    |-- yt-downloader.ps1
-    |-- run.bat
-    |-- setup.bat
-    |-- cookies.ps1
-    |-- README.md
-    |-- WHEN-BROKEN.txt
-    |-- REQUIREMENTS.txt
-    |-- deno.exe
-    |-- bgutil-pot.exe
-    |-- yt-dlp-plugins/
-    |   `-- bgutil-ytdlp-pot-provider/
-    |       `-- yt_dlp_plugins/
-    |           `-- extractor/
-    |               |-- getpot_bgutil.py
-    |               |-- getpot_bgutil_cli.py
-    |               `-- getpot_bgutil_http.py
-    `-- cookie.txt                # created by setup.bat
+<img width="537" height="470" alt="image" src="https://github.com/user-attachments/assets/e63abd6e-c07c-4bd5-9f02-2605390869b1" />
+
+
 ```
 
 **The script searches for `yt-dlp.exe` in three places, in order:**
