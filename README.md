@@ -143,29 +143,43 @@ existing ones.** If you've ever wondered *"why does my wrapper think it has
 ---
 ## Folder layout
 
+## Folder layout
+
 The script expects (and works with) this layout:
 
-  <anywhere>\
-  +-- yt-dlp.exe                    <- shared, may live in a common tools dir
-  +-- ffmpeg.exe                    <- optional, alongside yt-dlp.exe
-  +-- yt-downloader\                <- everything else, app-specific
-      +-- yt-downloader.ps1
-      +-- run.bat
-      +-- setup.bat
-      +-- cookies.ps1
-      +-- README.md					(this file)
-      +-- WHEN-BROKEN.txt
-      +-- REQUIREMENTS.txt          
-      +-- deno.exe
-      +-- bgutil-pot.exe
-      +-- yt-dlp-plugins\
-      |   +-- bgutil-ytdlp-pot-provider\
-      |       +-- yt_dlp_plugins\
-      |           +-- extractor\
-      |               +-- getpot_bgutil.py
-      |               +-- getpot_bgutil_cli.py
-      |               +-- getpot_bgutil_http.py
-      +-- cookie.txt                (created by setup.bat)
+```
+[somewhere]/
+├── yt-dlp.exe                    # shared, may live in a common tools dir
+├── ffmpeg.exe                    # optional, alongside yt-dlp.exe
+└── yt-downloader/                # everything else, app-specific
+    ├── yt-downloader.ps1
+    ├── run.bat
+    ├── setup.bat
+    ├── cookies.ps1
+    ├── README.md
+    ├── WHEN-BROKEN.txt
+    ├── REQUIREMENTS.txt
+    ├── deno.exe
+    ├── bgutil-pot.exe
+    ├── yt-dlp-plugins/
+    │   └── bgutil-ytdlp-pot-provider/
+    │       └── yt_dlp_plugins/
+    │           └── extractor/
+    │               ├── getpot_bgutil.py
+    │               ├── getpot_bgutil_cli.py
+    │               └── getpot_bgutil_http.py
+    └── cookie.txt                # created by setup.bat
+```
+
+**The script searches for `yt-dlp.exe` in three places, in order:**
+
+1. Its own folder (`yt-downloader/yt-dlp.exe`)
+2. The parent folder (where it sits in the layout above)
+3. `PATH`
+
+So the layout above works, and so does "everything in one folder" (drop all binaries into `yt-downloader/`) or "`yt-dlp.exe` is somewhere on `PATH`". Only `yt-dlp.exe` is flexible — everything else (`deno.exe`, `bgutil-pot.exe`, `yt-dlp-plugins/`, `cookie.txt`) must be inside `yt-downloader/`, alongside the `.ps1` and `.bat` files.
+
+Why the split? `yt-dlp.exe` is a general-purpose tool you may share across projects, and it self-updates (`yt-dlp -U`) — keeping it in a common location means one copy to update, not one per app. Everything in `yt-downloader/` is specific to this downloader and can be moved as a unit.
       
       **The script searches for `yt-dlp.exe` in three places, in order:**
 
