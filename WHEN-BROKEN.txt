@@ -1,0 +1,1196 @@
+================================================================================
+WHEN-BROKEN.TXT - Triage card for yt-downloader
+================================================================================
+
+NOTE: this file has been edited many times alongside the script. Most of
+it matches the current version, but a few sections may describe behavior
+from older drafts. If a command here doesn't work as written, trust the
+script's own output over this file, and check README.md for the current
+behavior. The Quick Reference at the bottom is the most reliable section.
+
+================================================================================
+WHEN-BROKEN.TXT - Triage card for yt-downloader
+================================================================================
+
+WHAT THIS IS
+
+A step-by-step "what do I do now" card. Open this first when the script
+does something unexpected. Follow the steps in order. Each step has one
+command, one expected result, and a clear branch.
+
+The main README explains what the script does and why. This file is only
+about fixing it.
+
+HOW TO USE
+
+Open PowerShell in the script folder (the one with run.bat and
+yt-downloader.ps1). To do that: open File Explorer, navigate to the
+folder, click the address bar, type "powershell", press Enter.
+
+Each step below gives you a block to paste. Copy, paste, Enter. Read the
+output. Branch based on what you see.
+
+The whole card takes about 3 minutes to walk through when nothing is
+broken. When something IS broken, you usually find it at step 1 or 2.
+
+================================================================================
+START HERE - run these checks in order
+================================================================================
+
+STEP 0 - Read the startup checkup output
+
+Every launch prints a checkup before downloading:
+
+=== Checkup ===
+
+yt-dlp.exe
+
+deno.exe
+
+bgutil-pot.exe
+
+ffmpeg (PATH)
+
+plugin folder (3 .py files)
+
+cookie profile
+
+bgutil (PO token via HTTP)
+
+JS runtime (deno)
+
+Read the X and ! lines first.
+
+X (red) means the script refused to start. Fix that item; nothing
+else matters until it's gone.
+
+! (yellow) means a warning. The script ran, but the affected feature
+is degraded. Common warnings and what they actually mean:
+
+! ffmpeg not found -> video+audio merging fails; single-format
+videos still download
+! cookie profile missing -> age-restricted content fails; normal
+downloads fine
+! bgutil not seen -> age-restricted content fails; normal
+downloads fine
+! deno not seen -> age-restricted content may fail
+
+If every line is + (green), skip steps 1-2 and go straight to step 3.
+
+IMPORTANT: the checkup's bgutil and JSC lines come from yt-dlp's own
+verbose output, not from a port scan. If the checkup reports bgutil
+as unavailable BUT yt-dlp manually reports it as available (see
+step 1), trust yt-dlp. See SECTION N.
+
+STEP 1 - Does yt-dlp itself see the plugin and JS runtime?
+
+Command:
+.\yt-dlp.exe -v --simulate --no-warnings "https://youtu.be/2h2eQClFnWc" 2>&1 | Select-String "PO Token|JS Challenge"
+
+Expected output, somewhere:
+[debug] [youtube] [pot] PO Token Providers: bgutil:http-0.8.1 (external)
+[debug] [youtube] [jsc] JS Challenge Providers: ... deno ...
+
+If PO Token shows "bgutil:http" WITHOUT "(unavailable)" -> plugin OK
+If JS Challenge shows "deno" WITHOUT "(unavailable)" -> JSC OK
+If either fails -> SECTION J
+If both pass -> step 2
+
+STEP 2 - Are cookies being read correctly?
+
+  Command:
+    .\yt-dlp.exe --cookies-from-browser "<your cookie profile>" --print "%(uploader)s" "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+  Your cookie profile is the single line in cookie.txt next to this
+  file. To see it:
+    Get-Content .\cookie.txt
+
+  It looks like:  firefox:C:\Users\YOU\AppData\Roaming\Waterfox\Profiles\xxxxx
+
+  Paste it inside the double quotes, replacing "<your cookie profile>".
+  If it's a bare browser name (chrome, edge, brave), use that instead.
+  If cookie.txt is empty, you picked "Skip cookies" during setup —
+  rerun setup.bat -Reset to configure.
+
+Expected: the word Rick Astley on a single line.
+
+If yes -> skip to step 3
+If no -> cookies broken. Jump to SECTION A.
+
+STEP 3 - Is the locale affecting the ID regex?
+
+Command:
+[System.Globalization.CultureInfo]::CurrentCulture.Name
+
+Expected: your locale code, e.g. en-US or tr-TR or de-DE.
+
+If result is "tr-TR" or starts with "tr-" -> jump to SECTION B
+Otherwise -> skip to step 4
+
+STEP 4 - Does enumeration see the expected number of videos?
+
+Command:
+run.bat "https://www.youtube.com/@YOURCHANNEL/videos" -DebugEnum
+
+Expected: a line like
+DEBUG raw=132 matched=132 rejected=0
+
+If raw = matched and rejected = 0 -> the script sees everything it can.
+Go to step 5.
+If rejected > 0 -> regex is dropping IDs. SECTION B.
+If raw is lower than expected -> yt-dlp isn't returning every video.
+SECTION C.
+
+STEP 5 - Is the script actually downloading?
+
+Run a real download and watch the progress line for 30 seconds:
+
+run.bat "https://www.youtube.com/@YOURCHANNEL/videos" -Workers 3
+
+Expected after 30 seconds: a status line like
+[14:32:21 +00:15] Worker1: 1/44 Worker2: 1/44 Worker3: 1/44 | Total 3/132 @ 65,2 MB/s
+
+If numbers are moving -> working. You are done.
+If it sits at 0/44 forever -> workers stalled. SECTION D.
+If it exits immediately -> read FAILED.txt. SECTION E.
+
+STEP 6 - Is the Downloads folder where you expect?
+
+Command:
+(New-Object -ComObject Shell.Application).Namespace('shell:Downloads').Self.Path
+
+Expected: your real Downloads path, e.g. S:\Downloads(Win10)
+or C:\Users\YOURNAME\Downloads
+
+If it matches where you're looking for files -> everything is fine.
+If the folder in front of you doesn't exist, or is empty but the
+progress said "Verified on disk: 132/132"
+-> the script wrote somewhere else. SECTION K.
+
+================================================================================
+SECTION A - Cookies are broken
+================================================================================
+
+How you got here: step 2 did not print "Rick Astley", or downloads stall
+immediately, or age-restricted videos vanish from enumeration.
+
+Common causes, in order of likelihood:
+
+  1. The cookie configuration in cookie.txt points to a profile that
+     no longer exists. Firefox and Waterfox create a new profile folder
+     name when they update or reinstall.
+
+     Fix: re-run setup with:
+       setup.bat -Reset
+
+     You will be prompted to pick a browser again. For Firefox-family
+     browsers, it auto-detects your profiles and lists them with
+     cookies.sqlite sizes so you can pick the active one.
+
+You are not signed in to YouTube inside the browser whose profile
+you are reading cookies from.
+
+Fix: open the browser, go to youtube.com, confirm your account
+avatar is in the top right. Sign in if needed, close fully, retry.
+
+  3. The browser might be open while the script runs. Some browsers
+     lock their cookie database, and yt-dlp may fail to read it. This
+     is not confirmed on all systems, but closing the browser is a
+     harmless thing to try before deeper troubleshooting.
+
+     Fix: close the browser completely before running.
+
+The browser is a Chromium (Chrome, Edge, Brave, Chromium, Opera,
+Vivaldi). These cannot be read via browser extraction on modern
+Windows because of App-Bound Encryption.
+
+Symptom: "Could not copy Chrome cookie database" or
+"Failed to decrypt with DPAPI".
+
+Fix: use a cookies.txt file instead. See SECTION I.4 below.
+
+After fixing any of the above, rerun step 2.
+
+================================================================================
+SECTION B - Turkish locale is eating video IDs
+================================================================================
+
+How you got here: step 3 said tr-TR, OR step 4 showed rejected > 0 and
+every rejected ID contains a capital "I".
+
+What is happening:
+
+Windows in Turkish locale lowercases the capital letter "I" to "i"
+with a dot or to the dotless "i" (U+0131) depending on context.
+PowerShell's -match operator is case-insensitive by default, and
+under tr-TR its [A-Za-z] character class fails to match capital I.
+Any video ID containing capital I is silently dropped.
+
+How to confirm:
+
+Run step 4 above. If rejected > 0 and every rejected line contains
+a capital I, this is the cause.
+
+Fix:
+
+Five lines in yt-downloader.ps1 need to use -cmatch and -cnotmatch
+(case-sensitive) instead of -match and -notmatch. The regex text is
+identical; only the operator changes.
+
+If you are running a current version of the script, this is already
+fixed. If you are on an older copy, or if someone introduced a plain
+-match in a place that parses IDs, find and fix these five sites:
+
+Inside Get-OnDiskIds:
+Find: if(')
+Replace: if(')
+
+Inside Invoke-Batch, .txt branch:
+Find: if(line-match'watch\?v=([A-Za-z0-9_-]{11})') Replace: if(line-cmatch'watch?v=([A-Za-z0-9_-]{11})')
+
+Inside Invoke-Batch, enumeration foreach:
+Find: if(
+l
+−
+i
+s
+[
+s
+t
+r
+i
+n
+g
+]
+−
+a
+n
+d
+l−is[string]−andl-match'^([A-Za-z0-9_-]{11})
+′
+)
+R
+e
+p
+l
+a
+c
+e
+:
+i
+f
+(
+′
+ )Replace:if(l-is[string]-and
+l
+−
+c
+m
+a
+t
+c
+h
+′
+(
+[
+A
+−
+Z
+a
+−
+z
+0
+−
+9
+−
+]
+11
+)
+l−cmatch 
+′(
+ [A−Za−z0−9 
+−
+​
+ ]11)')
+
+Inside Invoke-Batch, DEBUG block:
+Find: -notmatch'^([A-Za-z0-9_-]{11})
+′
+R
+e
+p
+l
+a
+c
+e
+:
+−
+c
+n
+o
+t
+m
+a
+t
+c
+h
+′
+(
+[
+A
+−
+Z
+a
+−
+z
+0
+−
+9
+−
+]
+11
+)
+′
+ Replace:−cnotmatch 
+′(
+ [A−Za−z0−9 
+−
+​
+ ]11)'
+
+Inside worker branch, error parser:
+Find: if(')
+Replace: if(')
+
+Save, rerun step 4. Expect rejected=0.
+
+Rule for future edits:
+
+Any regex that parses a YouTube video ID must use -cmatch / -cnotmatch.
+Safe everywhere - no downside in other locales. Make it a rule.
+
+================================================================================
+SECTION C - Enumeration itself is short
+================================================================================
+
+How you got here: step 4 showed raw lower than expected, OR the script
+says "Found 110" but the channel page shows 133.
+
+Diagnostic:
+
+$yt   = ".\yt-dlp.exe"
+$p    = (Get-Content .\cookie.txt -EA SilentlyContinue | Select-Object -First 1).Trim()
+$deno = "deno:$PWD\deno.exe"
+$ch   = "https://www.youtube.com/@YOURCHANNEL"
+
+"Videos:  $( @( & $yt --cookies-from-browser $p --js-runtimes $deno --flat-playlist --print '%(id)s' "$ch/videos"  2>$null ).Count )"
+"Shorts:  $( @( & $yt --cookies-from-browser $p --js-runtimes $deno --flat-playlist --print '%(id)s' "$ch/shorts"  2>$null ).Count )"
+"Streams: $( @( & $yt --cookies-from-browser $p --js-runtimes $deno --flat-playlist --print '%(id)s' "$ch/streams" 2>$null ).Count )"
+
+Reading the output:
+
+Case 1 - Videos + Shorts + Streams equals your expected total.
+The channel is not one tab. Shorts live at /shorts, live
+streams at /streams, /videos only covers regular uploads.
+Fix: run the script three times, once per tab:
+run.bat "https://www.youtube.com/@YOURCHANNEL/videos"
+run.bat "https://www.youtube.com/@YOURCHANNEL/shorts"
+run.bat "https://www.youtube.com/@YOURCHANNEL/streams"
+
+Case 2 - Sum is still lower than expected.
+Some videos are genuinely invisible to yt-dlp with your
+current cookies (private, deleted, members-only). Verify in
+a browser: click "Videos" on the channel page and count what
+YouTube itself shows. If YouTube shows 132 and yt-dlp shows
+132, you have them all. If YouTube shows 132 and yt-dlp
+shows 120, redo step 2 (cookies) - the missing 12 are likely
+age-restricted and not being authenticated. See SECTION I.
+
+Case 3 - Numbers are wildly off (like 5, not 100).
+yt-dlp is stale. Update it:
+.\yt-dlp.exe -U
+Then rerun step 4.
+
+Do NOT do this:
+
+Do not remove --flat-playlist from the enumeration line. It makes
+yt-dlp re-extract metadata for every video (30x slower, minutes of
+silence) and does not increase the count. This was a mistake made
+once already. Leave the flag alone.
+
+================================================================================
+SECTION D - Downloads stall at 0 MB/s
+================================================================================
+
+How you got here: step 5 shows a worker stuck at 0/44 and it never
+advances.
+
+Try in order:
+
+Wait 60 seconds. yt-dlp spends the first minute negotiating
+formats, opening fragments, and handshaking. If the counter moves
+after a minute, it's working.
+
+Refresh cookies (SECTION A), make sure bgutil-pot running (step 0).
+
+Kill and restart. Ctrl+C, restart with the same command. The disk
+scan skips everything already finished, so nothing is lost.
+Sometimes the stall is a transient YouTube bot check.
+
+One worker stalled but others fine. Normal for many videos - one
+URL may be throttled. Kill and restart, or wait it out.
+
+All workers stalled, every time, for every URL. bgutil-pot is
+probably not running or is broken. Check the log:
+Get-Content .\bgutil.log -EA SilentlyContinue
+Get-Content .\bgutil.log.err -EA SilentlyContinue
+If the log shows it started but never reached "listening on
+:4416", see SECTION L (hidden console issue).
+
+================================================================================
+SECTION E - Script runs but FAILED.txt has entries
+================================================================================
+
+How you got here: the summary said something like
+This run - OK: 20 Failed: 3
+
+Open FAILED.txt. Lines look like:
+Video Title | https://www.youtube.com/watch?v=ID | reason
+
+Common reasons and what to do:
+
+"Video unavailable"
+Deleted, private, or region-blocked. Try from a different network
+(VPN) if region is the issue. Otherwise nothing to download.
+
+"This video requires payment" / "members-only"
+Cookies lack access. Log in as an account that has access, close
+browser, retry.
+
+"Sign in to confirm you're not a bot"
+YouTube bot protection. Refresh cookies, confirm bgutil running,
+retry. If persistent, wait a day - YouTube flags IPs temporarily.
+
+"HTTP Error 403: Forbidden" / "HTTP Error 429: Too Many Requests"
+Rate limiting. Wait 30 minutes, retry. Consider lowering
+-Workers to 2 or 1.
+
+"Sign in to confirm your age"
+Age-gate. Three independent blockers must all be satisfied.
+Jump to SECTION I.
+
+"Requested format is not available"
+Video only has formats the script does not request. Verify:
+.\yt-dlp.exe -F "https://www.youtube.com/watch?v=ID"
+
+Retry:
+
+Fix the cause, then simply run the same command again. The disk scan
+skips successes and retries only failures. No need to delete
+FAILED.txt first - it's a log, not a status.
+
+================================================================================
+SECTION F - Files missing on disk but the script says "To fetch: 0"
+================================================================================
+
+How you got here: you deleted a file from the output folder, but the
+next run did not re-download it.
+
+Diagnostic:
+
+  Open the output folder (shell resolves the real Downloads path,
+  including redirects to another drive):
+
+    explorer (Join-Path (New-Object -ComObject Shell.Application).Namespace('shell:Downloads').Self.Path 'YouTube')
+
+Every file the script recognizes ends in [11-char-id]:
+My Video Title [dQw4w9WgXcQ].mp4
+
+If your missing file doesn't end in [id], the disk scan can't see it.
+Fix: delete and re-download, OR rename to append the correct [id]
+(the ID is in the YouTube URL after "v=").
+
+If the file DOES end in [id] but the script won't recognize it:
+
+Get-ChildItem "env:USERPROFILE\Downloads\YouTube" -Recurse -File | Where-Object { _.BaseName -notmatch '
+(
+[
+A
+−
+Z
+a
+−
+z
+0
+−
+9
+−
+]
+11
+)
+([A−Za−z0−9 
+−
+​
+ ]11)$' } |
+Select-Object FullName
+
+Anything this prints has a filename the script doesn't recognize.
+Either rename it or delete it.
+
+Note on non-.mp4 files:
+
+The disk scan by default recognizes .mp4 and .mp3 only. Rarely,
+yt-dlp may produce a .webm or .mkv (audio-only stream with no
+separate video, or videos where mp4 merging fails). Those files are
+invisible and re-downloaded every run. To widen, find this line
+inside Get-OnDiskIds:
+
+Where-Object { 
+.
+E
+x
+t
+e
+n
+s
+i
+o
+n
+−
+i
+n
+′
+.
+m
+p
+4
+′
+,
+′
+.
+m
+p
+3
+′
+−
+a
+n
+d
+.
+​
+ Extension−in 
+′
+ .mp4 
+′
+ , 
+′
+ .mp3 
+′
+ −and_.Length -gt 0 }
+
+Replace with:
+
+Where-Object { 
+.
+E
+x
+t
+e
+n
+s
+i
+o
+n
+−
+i
+n
+′
+.
+m
+p
+4
+′
+,
+′
+.
+m
+k
+v
+′
+,
+′
+.
+w
+e
+b
+m
+′
+,
+′
+.
+m
+p
+3
+′
+,
+′
+.
+m
+4
+a
+′
+,
+′
+.
+o
+p
+u
+s
+′
+−
+a
+n
+d
+.
+​
+ Extension−in 
+′
+ .mp4 
+′
+ , 
+′
+ .mkv 
+′
+ , 
+′
+ .webm 
+′
+ , 
+′
+ .mp3 
+′
+ , 
+′
+ .m4a 
+′
+ , 
+′
+ .opus 
+′
+ −and_.Length -gt 0 }
+
+Safe - partial files like "Title [id].f137.mp4" are still excluded
+because [id] must be at the end of the basename.
+
+================================================================================
+SECTION G - Video downloaded at low quality (360p) but channel has 4K
+================================================================================
+
+Cause: the file on disk was downloaded by an earlier run, at an earlier
+quality setting, or before yt-dlp updated to support the current format.
+The script itself always requests "best" - no flag to change.
+
+Verify the channel really has 4K:
+
+.\yt-dlp.exe -F "https://www.youtube.com/watch?v=VIDEO_ID"
+
+Look for the highest resolution row. If max is 2160p, the channel has
+4K and your local file is stale.
+
+Fix:
+
+Delete the low-quality file(s), then rerun. New download will be at
+whatever maximum the video offers.
+
+  Full wipe (careful):
+    Remove-Item (Join-Path (New-Object -ComObject Shell.Application).Namespace('shell:Downloads').Self.Path 'YouTube') -Recurse -Force
+
+================================================================================
+SECTION H - Nuclear reset (wipe everything, start clean)
+================================================================================
+
+Use this after many partial runs, interrupted migration, or when
+nothing else has worked and you want to eliminate accumulated state as
+a variable. Every command is safe to run even if the file doesn't
+exist.
+
+Remove-Item (Join-Path (New-Object -ComObject Shell.Application).Namespace('shell:Downloads').Self.Path 'YouTube') -Recurse -Force -EA SilentlyContinue
+Remove-Item .\FAILED.txt -EA SilentlyContinue
+Remove-Item .\chunk_.txt -EA SilentlyContinue
+Remove-Item .\worker.log, .\worker*.err -EA SilentlyContinue
+Remove-Item .\bgutil.log, .\bgutil.log.err -EA SilentlyContinue
+Remove-Item .\downloaded.txt -EA SilentlyContinue
+
+Deletes: every downloaded video, failure log, temp chunk, worker log,
+bgutil log, legacy archive.
+
+Does NOT delete: yt-downloader.ps1, run.bat, yt-dlp.exe, deno.exe,
+bgutil-pot.exe, plugins, or anything outside the script folder and
+Downloads\YouTube.
+
+After running, do step 0 and step 2, then start a fresh run.
+Everything re-downloads.
+
+================================================================================
+SECTION I - Age-restricted video won't download
+================================================================================
+
+Symptom: "Sign in to confirm your age" in the worker log or FAILED.txt.
+
+This error has THREE independent causes. All three must be fixed. Each
+one produces the same message, so a fix to one does not change the
+error - you must verify all three simultaneously.
+
+I.1 - Authentication (cookies)
+
+Is step 2 (Rick Astley test) working? If not, fix it (SECTION A).
+
+I.2 - PO token
+
+Is step 1 showing "bgutil:http" WITHOUT "(unavailable)"?
+If not, fix the plugin (SECTION J).
+
+I.3 - JS challenge solver
+
+Is step 1 showing at least one JS Challenge Provider that is
+NOT "(unavailable)"? If all four (bun/deno/node/quickjs) are
+unavailable, the JS stage never runs and the age-gate can't even
+be reached.
+
+Fix: verify --js-runtimes deno:<path-to-deno.exe> in
+yt-downloader.ps1. If deno.exe is missing, put it next to the
+script. Alternative: pass --remote-components ejs:github instead
+(fetches a solver from GitHub, cached after first use, no local
+binary needed).
+
+I.4 - Chromium-browser users - very common cause
+
+If you tried to switch $CookiesProfile to a Chrome/Edge/Brave
+profile, it will NOT work. Modern Chromium uses App-Bound
+Encryption and yt-dlp cannot decrypt the cookie database.
+
+Symptom: "Could not copy Chrome cookie database" or
+"Failed to decrypt with DPAPI".
+
+Fix: use cookies.txt instead of --cookies-from-browser. Steps:
+
+Install "Get cookies.txt LOCALLY" extension in the Chromium
+browser.
+
+Sign in to YouTube with the age-verified account.
+
+Export cookies as cookies.txt (Netscape format).
+
+Save the file next to yt-downloader.ps1.
+
+Edit yt-downloader.ps1, in 
+B
+a
+s
+e
+A
+r
+g
+s
+:
+C
+h
+a
+n
+g
+e
+:
+′
+−
+−
+c
+o
+o
+k
+i
+e
+s
+−
+f
+r
+o
+m
+−
+b
+r
+o
+w
+s
+e
+r
+′
+,
+BaseArgs:Change: 
+′
+ −−cookies−from−browser 
+′
+ ,CookiesProfile,
+To: '--cookies', (Join-Path $Dir 'cookies.txt'),
+
+Save, rerun.
+
+This is a hard wall, not a bug. Chromium on Windows cannot be
+read by external tools.
+
+ALL THREE green and still failing?
+
+The account behind the cookies has not completed YouTube age
+verification. Test the same URL manually in the browser whose
+cookies you use. If the browser also blocks it, no script can help.
+
+If the browser plays it but yt-dlp doesn't, re-export or re-check
+cookies. The session in use for yt-dlp is not the same session as
+the browser tab.
+
+================================================================================
+SECTION J - Plugin or JS challenge not loading
+================================================================================
+
+Symptom (from step 1): "PO Token Providers: none",
+"bgutil:http (external, unavailable)", or all JS Challenge Providers
+"(unavailable)".
+
+J.0 - Common folder structure mistakes
+
+yt-dlp requires this exact shape:
+
+yt-dlp-plugins
++-- bgutil-ytdlp-pot-provider
++-- yt_dlp_plugins
++-- extractor
++-- getpot_bgutil.py
++-- getpot_bgutil_cli.py
++-- getpot_bgutil_http.py
+
+If your .py files are one level too high (yt-dlp-plugins\extractor),
+fix with:
+
+New-Item -ItemType Directory .\yt-dlp-plugins\bgutil-ytdlp-pot-provider\yt_dlp_plugins -Force | Out-Null
+Move-Item .\yt-dlp-plugins\extractor .\yt-dlp-plugins\bgutil-ytdlp-pot-provider\yt_dlp_plugins\extractor
+
+If they are under yt-dlp-plugins\yt_dlp_plugins\ directly:
+
+New-Item -ItemType Directory .\yt-dlp-plugins\bgutil-ytdlp-pot-provider -Force | Out-Null
+Move-Item .\yt-dlp-plugins\yt_dlp_plugins .\yt-dlp-plugins\bgutil-ytdlp-pot-provider\yt_dlp_plugins
+
+J.1 - Folder name is load-bearing
+
+yt-dlp looks for a folder named exactly yt_dlp_plugins
+(UNDERSCORES, not hyphens). Not "yt-dlp-plugins". Not
+"yt_dlp_plugins-main". The name matters.
+
+J.2 - Executable name
+
+The release ships bgutil-pot-windows-x86_64.exe. Rename it to
+bgutil-pot.exe.
+
+J.3 - JS challenge runtime
+
+Verify --js-runtimes deno:<path> in yt-downloader.ps1's 
+B
+a
+s
+e
+A
+r
+g
+s
+.
+T
+h
+e
+<
+p
+a
+t
+h
+>
+m
+u
+s
+t
+b
+e
+a
+b
+s
+o
+l
+u
+t
+e
+(
+t
+h
+e
+s
+c
+r
+i
+p
+t
+u
+s
+e
+s
+BaseArgs.The<path>mustbeabsolute(thescriptusesDeno, which is
+"$Dir\deno.exe"). If deno.exe is not present, either add it or
+switch to --remote-components ejs:github.
+
+J.4 - Plugin still not loading after folder and name fix
+
+Check yt-dlp version:
+.\yt-dlp.exe --version
+
+Should be 2025.05.22 or newer. Update if needed:
+.\yt-dlp.exe -U
+
+================================================================================
+SECTION K - Wrong Downloads folder
+================================================================================
+
+How you got here: step 6 printed a path you didn't expect, OR you can't
+find your downloaded files, OR the script says "Verified on disk:
+132/132" but no folder has 132 files.
+
+Why this happens:
+
+%USERPROFILE%\Downloads is a literal string. If Downloads was
+redirected to another drive via Explorer -> Properties -> Location,
+the string points to a folder that doesn't exist. The real path is
+known only to the shell.
+
+What the script does:
+
+Queries the shell:
+(New-Object -ComObject Shell.Application).Namespace('shell:Downloads').Self.Path
+This works regardless of redirection.
+
+What you should do:
+
+Run step 6 above. Note the path.
+
+Open that folder in Explorer. Your downloaded videos are there.
+
+If you want them somewhere else, edit yt-downloader.ps1's $OutDir
+line. It defaults to joining the shell Downloads with 'YouTube'.
+
+Do NOT replace the shell lookup with %USERPROFILE%\Downloads - it
+silently loses the redirect.
+
+If the shell lookup returns something wrong:
+
+The shell's known-folder registration is broken. Fix via:
+Explorer -> right-click Downloads -> Properties -> Location -> Restore Default
+
+Or pick a different redirect target. Then rerun step 6 to verify.
+
+================================================================================
+SECTION L - bgutil won't bind to port 4416
+================================================================================
+
+How you got here: checkup shows
+  ! bgutil not seen by yt-dlp
+AND step 1 shows bgutil as "(unavailable)" or missing entirely.
+
+Most likely cause: missing redirect flags
+
+  bgutil-pot.exe is a Rust binary. On Windows its startup logging
+  writes to the console handle. When the handle is a hidden console
+  AND there is no redirected output, those writes fail and bgutil can
+  hang before reaching the port-bind call. The process is alive, but
+  port 4416 never opens.
+
+  The script launches bgutil with both -WindowStyle Hidden AND
+  -RedirectStandardOutput / -RedirectStandardError, which give it real
+  file handles to write to. That combination works. Hidden alone can
+  hang.
+
+  Find this line in the bgutil start block:
+    $bgProc = Start-Process $Bgutil -ArgumentList 'server','--port','4416' -WindowStyle Hidden -PassThru -RedirectStandardOutput $bgLog -RedirectStandardError "$bgLog.err"
+
+  Both -WindowStyle Hidden and the two redirect flags must be present.
+  Do not remove the redirects.
+
+  If someone changed it to -WindowStyle Minimized with no redirects,
+  change it back to Hidden + redirects.
+
+Verify bgutil works when run directly:
+
+  .\bgutil-pot.exe server --port 4416
+
+  Expected output on a working system:
+    INFO bgutil_ytdlp_pot_provider::cli::server: Starting POT server v0.8.1
+    INFO bgutil_ytdlp_pot_provider::cli::server: POT server v0.8.1 listening on [::]:4416
+
+  It stays running until you Ctrl+C. If it prints those two lines, the
+  binary is fine - the launch method in the script is the problem.
+
+If bgutil still fails when run directly:
+
+  - Prints an error -> read it, that's the cause.
+  - Prints nothing, exits immediately -> binary is broken/wrong arch.
+    Re-download.
+  - Prints nothing, hangs -> try a different build.
+
+Check bgutil's log files after a failed script run:
+
+  Get-Content .\bgutil.log -EA SilentlyContinue
+  Get-Content .\bgutil.log.err -EA SilentlyContinue
+
+  Empty logs + process running + yt-dlp can't see bgutil = check the
+  redirect flags are present on the Start-Process line.
+
+Orphan handling:
+
+  Every unclean exit (X button, power loss) leaves a bgutil process
+  running. The script kills bgutil on clean exit (Ctrl+C, normal end of
+  run), so orphans only accumulate after X-closes.
+
+  To kill all bgutil processes manually:
+    Get-Process bgutil-pot -EA SilentlyContinue | Stop-Process -Force
+
+To stop the script cleanly, always use Ctrl+C on the script window,
+  not the X button.
+
+================================================================================
+SECTION M - PowerShell script won't parse (Unexpected token errors)
+================================================================================
+
+How you got here: launching the script shows errors like
+
+At G:...\yt-downloader.ps1:74 char:64
+
+... $issues += " (found yt-dlp-plugins\extractor\ â?" needs bgutil- ...
+
+text
+Unexpected token 'needs' in expression or statement.
+Missing closing '}' in statement block or type definition.
+
+Cause: the .ps1 file is saved as UTF-8 WITHOUT BOM, and contains
+non-ASCII characters (em dashes, curly quotes, box-drawing characters,
+arrows). Windows PowerShell 5.1 reads .ps1 files as ANSI unless they
+have a UTF-8 BOM. Any byte above 127 gets corrupted into garbage bytes
+that break the parse.
+
+Two fixes:
+
+Fix 1 (recommended): save the .ps1 as UTF-8 with BOM.
+
+In Notepad3: File -> Encoding -> "UTF-8 with Signature"
+In Notepad: File -> Save As -> Encoding -> "UTF-8 with BOM"
+In VS Code: Bottom-right encoding -> "Save with Encoding"
+-> "UTF-8 with BOM"
+
+"Signature" and "BOM" mean the same thing. Pick either.
+
+Fix 2 (safer for portability): remove all non-ASCII characters.
+
+Replace with ASCII equivalents:
+
+(em dash) -> -
+-> (right arrow) -> ->
+" (curly double) -> "
+' (curly single) -> '
++-- (box drawing) -> +--
+
+Then save as anything; encoding no longer matters.
+
+Prevention:
+
+When editing yt-downloader.ps1, prefer Fix 2. Any editor at any
+point could re-save the file as UTF-8-without-BOM, and the bug
+comes back. If the file is pure ASCII, encoding never matters.
+
+================================================================================
+SECTION N - Checkup says bgutil is broken but downloads work fine
+================================================================================
+
+How you got here: checkup warns
+! bgutil not seen by yt-dlp
+! JS runtime not seen
+but the actual download completes without errors, or step 1 (yt-dlp
+verbose check) shows both bgutil and deno as available.
+
+This is a false positive from the checkup.
+
+The checkup now uses yt-dlp's own verbose output as the source of
+truth. It should not produce false positives. If it does, one of
+these:
+
+The checkup output you saw is from an older version of the script
+(before the current -v --simulate based check). Re-check yt-
+downloader.ps1's Test-Environment function to see how it tests.
+If it uses Get-NetTCPConnection or TcpClient, upgrade to the
+current version.
+
+yt-dlp was busy with another process when the checkup ran, and
+its response was incomplete. Rare - only if you have another
+yt-dlp process running in parallel.
+
+What to do:
+
+Ignore the warning. Downloads work. The checkup is advisory, not
+authoritative. If you want to bypass it entirely:
+run.bat "URL" -SkipCheckup
+
+Or add -SkipCheckup permanently to run.bat if the checkup provides
+no value on your system:
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0yt-downloader.ps1" -Workers 3 -Fragments 4 -SkipCheckup %*
+
+Do NOT bypass the checkup if you're troubleshooting age-restricted
+content - the checkup is the fastest way to confirm all three
+blockers are green.
+
+================================================================================
+QUICK REFERENCE
+================================================================================
+
+Idempotency: rerunning the script is always safe. The disk scan skips
+             everything already downloaded. When in doubt, rerun.
+
+Workers:     the script pulls with three parallel workers by default.
+             Each worker downloads a different video at the same time.
+             Total time is roughly (total videos / 3) x (average video
+             time). Adjust with -Workers N.
+
+Do not remove --flat-playlist from the enumeration line.
+Do not remove --js-runtimes deno:<path> without replacing it with another
+JSC runtime (node/bun/ejs).
+Do not use --cookies-from-browser with a Chromium browser on Windows -
+App-Bound Encryption blocks it. Use cookies.txt.
+Do not remove the -RedirectStandardOutput / -RedirectStandardError flags
+             from the bgutil start line. Hidden alone can hang bgutil
+             before bind; Hidden + redirects works.
+Do not trust downloaded.txt - the current script does not read it.
+Do not expect FAILED.txt to shrink - it appends, it is a log not a status.
+Do not replace the Shell COM Downloads lookup with %USERPROFILE%\Downloads.
+Do not use plain -match for ID parsing regex - use -cmatch for tr-TR safety.
+Do not save yt-downloader.ps1 with non-ASCII characters unless you know
+it's saved as UTF-8 with BOM.
+
+Do use -DebugEnum whenever enumeration output looks suspicious.
+Do close your browser fully before running (cookie locking).
+Do verify all three blockers for age-gated content simultaneously.
+Do trust yt-dlp's -v --simulate output over any TCP port check.
+Do trust "Verified on disk: N/M" over any other success message.
+Do keep yt-dlp updated (.\yt-dlp.exe -U) after YouTube page changes.
+Do press Ctrl+C (not X) to stop a run cleanly.
+Do check bgutil.log and bgutil.log.err if bgutil misbehaves.
+
+For age-gated content, all three must be true simultaneously:
+
+Cookies authenticate the age-verified account
+
+PO token via bgutil:http works (plugin loaded + server running)
+
+JS Challenge Provider available (deno or equivalent)
+If all three are true and it still fails, the account itself lacks
+verification - no script can fix that.
+
+END OF WHEN-BROKEN.TXT

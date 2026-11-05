@@ -1,0 +1,96 @@
+============================================================
+REQUIREMENTS — external tools for yt-downloader
+============================================================
+
+This project does not ship binaries. Download the four files below
+and place them in the folder layout described at the bottom.
+
+File              Source
+----------------  ------------------------------------------------
+yt-dlp.exe        https://github.com/yt-dlp/yt-dlp/releases
+                  Pick the latest "yt-dlp.exe" (Windows x64).
+                  License: GPLv3+ (bundled PyInstaller build).
+                  Source:  https://github.com/yt-dlp/yt-dlp
+
+ffmpeg.exe        https://www.gyan.dev/ffmpeg/builds/
+                  (or https://github.com/BtbN/FFmpeg-Builds/releases)
+                  Optional — only needed if not already on PATH.
+                  Copy ffmpeg.exe and ffprobe.exe next to yt-dlp.exe.
+                  License: LGPL 2.1+ or GPL 2+, depends on build.
+                  Source:  https://ffmpeg.org/download.html
+
+deno.exe          https://github.com/denoland/deno/releases
+                  Pick deno-x86_64-pc-windows-msvc.zip.
+                  License: MIT.
+                  Source:  https://github.com/denoland/deno
+
+bgutil-pot.exe    https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases
+                  Download bgutil-pot-windows-x86_64.exe and rename
+                  it to bgutil-pot.exe.
+                  License: GPL-3.0.
+                  Source:  https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs
+
+yt-dlp-plugins/   https://github.com/Brainicism/bgutil-ytdlp-pot-provider
+                  Copy the yt_dlp_plugins folder from the release zip.
+                  License: GPL-3.0.
+                  Source:  https://github.com/Brainicism/bgutil-ytdlp-pot-provider
+
+------------------------------------------------------------
+SHA256 (verified 2026-11-05, update when you redownload):
+  yt-dlp.exe       F5389D3698ECDE4EF06F4E6B1CE0294FE9AC1396228C8990B8D3416D6D177A7D
+  deno.exe         924397800533D3EB0ED0C889B20AD70E18B970D93ACD8135BC043F425E528266
+  bgutil-pot.exe   25D6B05C79176AA792454C3D1727922CA47E56CF11CB1E866615D751819B14A0
+
+ffmpeg.exe is optional. No hash provided — grab any recent
+Windows x64 build.
+
+Verify what you downloaded (paths assume the folder layout below —
+adjust if you put things elsewhere):
+
+  Get-FileHash ..\yt-dlp.exe, .\deno.exe, .\bgutil-pot.exe -Algorithm SHA256
+
+  Compare each Hash to the list above. Mismatch = got a different
+  build. That is not always wrong (upstream updates the binaries),
+  but if you expected the same build, you didn't get it.
+
+  If ffmpeg.exe exists in the parent folder and you want to verify it,
+  there is no hash in this file (upstream builds vary). Trust the
+  source you got it from.
+
+------------------------------------------------------------
+Folder layout this project expects:
+
+  <anywhere>\
+  +-- yt-dlp.exe                    <- shared, may live in a common tools dir
+  +-- ffmpeg.exe                    <- optional, alongside yt-dlp.exe
+  +-- yt-downloader\                <- everything else, app-specific
+      +-- yt-downloader.ps1
+      +-- run.bat
+      +-- setup.bat
+      +-- cookies.ps1
+      +-- README.md
+      +-- WHEN-BROKEN.txt
+      +-- REQUIREMENTS.txt          (this file)
+      +-- deno.exe
+      +-- bgutil-pot.exe
+      +-- yt-dlp-plugins\
+      |   +-- bgutil-ytdlp-pot-provider\
+      |       +-- yt_dlp_plugins\
+      |           +-- extractor\
+      |               +-- getpot_bgutil.py
+      |               +-- getpot_bgutil_cli.py
+      |               +-- getpot_bgutil_http.py
+      +-- cookie.txt                (created by setup.bat)
+
+The script finds yt-dlp.exe by searching, in order:
+  1. Its own folder
+  2. The parent folder
+  3. PATH
+So the layout above works, but so does "everything in one folder" or
+"yt-dlp.exe on PATH". Move things as you like — as long as one of the
+three locations has it, the script starts.
+
+------------------------------------------------------------
+Optional: run fetch-tools.ps1 to download the three binaries
+automatically. Note: URLs move over time. If a download 404s,
+open REQUIREMENTS.txt and grab manually from the linked page.
