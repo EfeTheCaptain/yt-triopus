@@ -12,7 +12,7 @@ folder.
 
 ## Contents
 
-- [Why this app](#why this app)
+- [Why this app](#why-this-app)
 - [Features](#features)
 - [Folder layout](#folder-layout)
 - [Requirements](#requirements)
