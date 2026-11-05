@@ -53,7 +53,8 @@ time for a 130-video channel is the sum of every video's download time. Three
 workers means three videos are downloading in parallel — total time is roughly
 `total / 3`, network permitting. The progress display shows each worker
 separately, so you can see all three streams moving at once:
-[14:32:21 +00:15] Worker1: 2/44 Worker2: 1/44 Worker3: 2/44 | Total 5/132 @ 105,2 MB/s
+
+[] Worker1: 2/44 Worker2: 1/44 Worker3: 2/44 | Total 5/132 @ 105,2 MB/s
 
 Each worker is an independent process with its own yt-dlp child, its own
 `-N` fragment parallelism inside each video, and its own slice of the
